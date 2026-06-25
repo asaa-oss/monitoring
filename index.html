@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Панель Мониторинга</title>
+    <style>
+        :root { --primary: #007bff; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; display: grid; grid-template-columns: 350px 1fr; height: 100vh; margin: 0; background: var(--bg); }
+        
+        /* Левая панель: Список категорий (Вкладок) */
+        .sidebar { background: white; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .section { border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        .section:last-child { border-bottom: none; }
+        h3 { margin-top: 0; color: #333; font-size: 18px; }
+        
+        input { width: calc(100% - 20px); padding: 8px; margin: 8px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; width: 100%; }
+        button { cursor: pointer; background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 4px; font-size: 14px; }
+        button.delete { background: #dc3545; width: 100%; margin-top: 15px; }
+
+        /* Вертикальные вкладки категорий */
+        .category-item { border: 1px solid #eee; padding: 12px; margin-bottom: 8px; border-radius: 6px; cursor: pointer; font-weight: 500; color: #444; transition: all 0.2s; }
+        .category-item:hover { background: #f8f9fa; }
+        .category-item.active { border-color: var(--primary); background: #e7f1ff; color: var(--primary); font-weight: bold; }
+
+        /* Правая панель: Рабочая область активной вкладки */
+        .main-content { padding: 25px; overflow-y: auto; display: flex; flex-direction: column; gap: 25px; }
+        
+        /* Верхняя секция внутри вкладки: Ссылки и их добавление */
+        .links-management { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border: 1px solid #eef0f2; }
+        .links-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .links-header h4 { margin: 0; color: #333; font-size: 16px; }
+        
+        .link-form { display: flex; gap: 10px; margin-bottom: 15px; }
+        .link-form input { margin: 0; flex-grow: 1; }
+        
+        .links-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .link-badge { background: #f1f3f5; color: #495057; padding: 6px 14px; border-radius: 20px; font-size: 13px; text-decoration: none; border: 1px solid #dee2e6; transition: all 0.2s; }
+        .link-badge:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Лента постов (Вебсокет) */
+        .feed-section { display: flex; flex-direction: column; width: 100%; }
+        #status { font-weight: bold; margin-bottom: 15px; color: #666; font-size: 14px; }
+        #posts-container { width: 100%; display: flex; flex-direction: column-reverse; gap: 15px; }
+        .post-card { background: white; padding: 18px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #eef0f2; width: 100%; box-sizing: border-box; }
+        .post-header { display: flex; justify-content: space-between; color: var(--primary); font-weight: bold; margin-bottom: 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<!-- Боковая панель (Слева) -->
+<div class="sidebar">
+    <div class="section">
+        <h3>Категории</h3>
+        <input type="text" id="cat-input" placeholder="Название категории">
+        <button onclick="addCategory()" style="width: 100%;">Создать категорию</button>
+    </div>
+    
+    <!-- Список вертикальных вкладок -->
+    <div class="section" style="flex-grow: 1; overflow-y: auto;">
+        <div id="categories-list"></div>
+    </div>
+</div>
+
+<!-- Контентная область активной вкладки (Справа) -->
+<div class="main-content" id="tab-content-area" style="display: none;">
+    
+    <!-- Верхняя часть открытой вкладки: Управление ссылками -->
+    <div class="links-management">
+        <div class="links-header">
+            <h4>Ссылки в категории: <span id="current-cat-name" style="color: var(--primary);">...</span></h4>
+        </div>
+        
+        <!-- Форма добавления ссылки напрямую в эту вкладку -->
+        <div class="link-form">
+            <input type="text" id="link-input" placeholder="Введите URL (например, vk.com или t.me/channel)">
+            <button onclick="addLink()">Добавить ссылку</button>
+        </div>
+        
+        <!-- Список ссылок сверху внутри вкладки -->
+        <div id="links-list" class="links-list"></div>
+        
+        <button class="delete" onclick="deleteCategory()">Удалить эту категорию целиком</button>
+    </div>
+
+    <!-- Нижняя часть открытой вкладки: Потоковый Вебсокет -->
+    <div class="feed-section">
+        <div id="status">WebSocket: Подключение...</div>
+        <div id="posts-container"></div>
+    </div>
+</div>
+
+<script >
+
+const API_URL = window.location.origin; // Автоматически определит http://localhost:8000 или твой реальный IP/домен сервера
+let currentCategory = null;
+let socket = null; // Храним глобальную ссылку на сокет, чтобы уметь его закрывать/переоткрывать
+
+let categoriesData = {{ categories | default([]) | tojson | safe }};
+
+// Хелпер для быстрого поиска текущего объекта категории в массиве
+function getCurrentCategoryObj() {
+    return categoriesData.find(item => item.category === currentCategory) || null;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    renderCategories();
+    
+    // Автоматически открываем первую вкладку при загрузке страницы
+    if (categoriesData.length > 0) {
+        switchTab(categoriesData[0].category);
+    }
+});
+
+function renderCategories() {
+    const list = document.getElementById('categories-list');
+    list.innerHTML = '';
+    
+    categoriesData.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `category-item ${currentCategory === item.category ? 'active' : ''}`;
+        div.innerText = item.category;
+        div.onclick = () => switchTab(item.category);
+        list.appendChild(div);
+    });
+}
+
+async function addCategory() {
+    const input = document.getElementById('cat-input');
+    const name = input.value.trim();
+    if (!name) return;
+    
+    try {
+        await fetch(`${API_URL}/newcategory?category=${encodeURIComponent(name)}`, { method: 'POST' });
+        
+        // Проверяем, нет ли уже такой категории в массиве
+        if (!categoriesData.some(item => item.category === name)) {
+            categoriesData.push({
+                category: name,
+                links: [],
+                posts: []
+            }); 
+        }
+        input.value = '';
+        
+        currentCategory = name; 
+        renderCategories();
+        switchTab(name);
+    } catch (e) {
+        console.error("Ошибка при создании категории:", e);
+    }
+}
+
+function switchTab(name) {
+    currentCategory = name;
+    
+    // Подсвечиваем активный элемент в меню
+    document.querySelectorAll('.category-item').forEach(el => {
+        el.classList.toggle('active', el.innerText === name);
+    });
+
+    // Открываем рабочую область
+    document.getElementById('tab-content-area').style.display = 'flex';
+    document.getElementById('current-cat-name').innerText = name;
+    
+    renderLinks();
+    renderInitialPosts(); // Отрисовываем посты, которые пришли из базы
+    
+    // ПЕРЕЗАПУСКАЕМ ВЕБ-СОКЕТ С ФИЛЬТРАЦИЕЙ ПО КАТЕГОРИИ
+    setupWebSocket(name);
+}
+
+// --- УПРАВЛЕНИЕ ВЕБ-СОКЕТОМ С ДИНАМИЧЕСКИМ МАРШРУТОМ ---
+function setupWebSocket(categoryName) {
+    // Если сокет уже был открыт для другой вкладки — корректно закрываем его
+    if (socket) {
+        socket.close();
+    }
+
+    // Вычисляем протокол (ws:// для http и wss:// для безопасного https на сервере)
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const host = window.location.host;
+
+    // Передаем категорию в query-параметрах, как мы спроектировали на бэкенде FastAPI
+    socket = new WebSocket(`${wsProtocol}${host}/ws?category=${encodeURIComponent(categoryName)}`);
+
+    socket.onopen = () => {
+        const statusEl = document.getElementById('status');
+        if (statusEl) statusEl.innerText = `WebSocket: Стрим [${categoryName}] подключен`;
+    };
+
+    socket.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data); // { text, group_name, link, category, created_at }
+            
+            // Находим категорию в сохраненном массиве данных
+            const targetObj = categoriesData.find(item => item.category === data.category);
+            if (targetObj) {
+                // Защита от дубликатов (если пост уже прилетел, не пушим его дважды в память)
+                if (!targetObj.posts.some(p => p.link === data.link)) {
+                    targetObj.posts.push(data); 
+                }
+            }
+            
+            // Если открыта именно та категория, для которой пришел пост — сразу рендерим СВЕРХУ ленты
+            if (currentCategory === data.category) {
+                appendPostToDOM(data, true); // true означает, что пост новый и падает наверх
+            }
+        } catch (e) {
+            console.error("Ошибка парсинга WebSocket сообщения:", e);
+        }
+    };
+
+    socket.onclose = () => {
+        const statusEl = document.getElementById('status');
+        if (statusEl) statusEl.innerText = 'WebSocket: Отключен от сервера';
+    };
+
+    socket.onerror = (error) => {
+        console.error("[WS] Ошибка сокета:", error);
+    };
+}
+
+async function deleteCategory() {
+    if (!currentCategory || !confirm(`Удалить категорию "${currentCategory}" и все её ссылки?`)) return;
+    try {
+        await fetch(`${API_URL}/removecategory?category=${encodeURIComponent(currentCategory)}`, { method: 'DELETE' });
+        
+        // Удаляем категорию из массива
+        categoriesData = categoriesData.filter(item => item.category !== currentCategory);
+        
+        if (categoriesData.length > 0) {
+            switchTab(categoriesData[0].category); // Переключаемся на первую оставшуюся
+        } else {
+            currentCategory = null;
+            if (socket) socket.close();
+            document.getElementById('tab-content-area').style.display = 'none';
+        }
+        renderCategories();
+    } catch (e) {
+        console.error("Ошибка удаления категории:", e);
+    }
+}
+
+// --- УПРАВЛЕНИЕ ССЫЛКАМИ ---
+
+async function addLink() {
+    const input = document.getElementById('link-input');
+    const link = input.value.trim();
+    if (!link || !currentCategory) return;
+    
+    try {
+        const res = await fetch(`${API_URL}/newlink?link=${encodeURIComponent(link)}&category=${encodeURIComponent(currentCategory)}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.error) {
+            alert(data.error);
+        } else {
+            const currentObj = getCurrentCategoryObj();
+            if (currentObj) {
+                currentObj.links.push(link);
+            }
+            input.value = '';
+            renderLinks();
+        }
+    } catch (e) {
+        console.error("Ошибка добавления ссылки:", e);
+    }
+}
+async function removeLink(link) {
+    if (!currentCategory) return;
+    
+    // Опционально: подтверждение удаления у пользователя
+    if (!confirm(`Удалить ссылку: ${link}?`)) return;
+
+    try {
+        // Делаем POST-запрос на /removelink по аналогии с вашим эндпоинтом добавления
+        const res = await fetch(`${API_URL}/removelink?link=${encodeURIComponent(link)}&category=${encodeURIComponent(currentCategory)}`, { method: 'DELETE' });
+        const data = await res.json();
+        
+        if (data.error) {
+            alert(data.error);
+        } else {
+            const currentObj = getCurrentCategoryObj();
+            if (currentObj) {
+                // Удаляем ссылку из локального массива в памяти
+                currentObj.links = currentObj.links.filter(item => item !== link);
+            }
+            renderLinks(); // Перерисовываем интерфейс (ссылка исчезнет)
+        }
+    } catch (e) {
+        console.error("Ошибка удаления ссылки:", e);
+    }
+}
+
+function renderLinks() {
+    const list = document.getElementById('links-list');
+    list.innerHTML = '';
+    
+    const currentObj = getCurrentCategoryObj();
+    const links = currentObj ? currentObj.links : [];
+    
+    if (links.length === 0) {
+        list.innerHTML = '<span style="color: gray; font-size: 13px;">В этой категории пока нет отслеживаемых ссылок</span>';
+        return;
+    }
+
+    links.forEach(link => {
+        const container = document.createElement('div');
+        container.className = 'link-item-container'; // Класс для стилизации (флексбокс)
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.gap = '8px';
+        container.style.marginBottom = '6px'; // Небольшой отступ между строками
+
+        // Создаем элемент ссылки
+        const a = document.createElement('a');
+        a.className = 'link-badge';
+        a.href = link.startsWith('http') ? link : `https://${link}`;
+        a.target = '_blank';
+        a.innerText = link;
+
+        // Создаем кнопку удаления
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-link-btn';
+        deleteBtn.innerText = '×'; // Изящный крестик вместо длинного слова
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.style.color = 'red';
+        deleteBtn.style.border = 'none';
+        deleteBtn.style.background = 'transparent';
+        deleteBtn.style.fontSize = '16px';
+        deleteBtn.style.padding = '0 4px';
+        
+        // Навешиваем событие удаления
+        deleteBtn.onclick = () => removeLink(link);
+
+        // Собираем элементы вместе
+        container.appendChild(a);
+        container.appendChild(deleteBtn);
+        list.appendChild(container);
+    });
+}
+
+// --- ОТРЕНДЕРИТЬ ПОСТЫ ИЗ БД ---
+function renderInitialPosts() {
+    const container = document.getElementById('posts-container');
+    container.innerHTML = ''; // Очищаем контейнер от старых постов другой вкладки
+    
+    const currentObj = getCurrentCategoryObj();
+    const posts = currentObj ? currentObj.posts : [];
+    
+    posts.forEach(post => {
+        appendPostToDOM(post, false); // false — посты из базы, добавляем их по порядку (вниз)
+    });
+}
+
+// Изменили логику добавления: новые WebSocket посты падают наверх ленты
+function appendPostToDOM(data, isNewWebSocketPost = false) {
+    const container = document.getElementById('posts-container');
+    const card = document.createElement('div');
+    card.className = isNewWebSocketPost ? 'post-card new-post-animation' : 'post-card';
+    
+    card.innerHTML = `
+        <div class="post-header" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-weight: 600; color: var(--primary);">${data.group_name || 'Источник'}</span>
+        </div>
+        <div style="font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap;">${data.text || ''}</div>
+        <a href="${data.link || '#'}" target="_blank" style="display:inline-block; margin-top:12px; font-size:13px; color: #007bff; text-decoration: none; font-weight: 500;">Перейти к публикации →</a>
+    `;
+
+    if (isNewWebSocketPost) {
+        // Если это живой пост из сокета — кидаем его на самый верх ленты
+        container.insertBefore(card, container.firstChild);
+    } else {
+        // Если это старый пост при загрузке вкладки — пушим в конец
+        container.appendChild(card);
+    }
+}
+
+
+</script>
+</body>
+</html>
