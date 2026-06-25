@@ -5,9 +5,10 @@ from tg import parse_tg_id,client
 from aiovk import TokenSession,API
 from vk2 import VKRealTimeManager
 from dotenv import load_dotenv
+DB_FILE = 'links.db'
 TOKEN = load_dotenv("TOKEN")
 async def load_links(vk:VKRealTimeManager,tg_chan:list,tg_cat:dict):
-    conn = await aiosqlite.connect("links.db")
+    conn = await aiosqlite.connect(DB_FILE)
     async with conn.execute("SELECT * from links") as cursor:
         rows = await cursor.fetchall()
         for row in rows:
@@ -24,13 +25,13 @@ async def add_link(link:str,category):
     vk_pattern = r"(https?://)?(vk\.com|vk\.ru)/[a-zA-Z0-9._]+"
 
     if re.search(tg_pattern, link):
-        conn =   await aiosqlite.connect("links.db")
+        conn =   await aiosqlite.connect(DB_FILE)
         await conn.execute("INSERT INTO links(soc_media,url,category) VALUES(?,?,?)",("tg",link,category))
         await conn.commit()
         await conn.close()
         return 'tg'
     elif re.search(vk_pattern, link):
-        conn =  await aiosqlite.connect("links.db")
+        conn =  await aiosqlite.connect(DB_FILE)
         await conn.execute("INSERT INTO links(soc_media,url,category) VALUES(?,?,?)",("vk",link,category))
         await conn.commit()
         await conn.close()
@@ -38,13 +39,13 @@ async def add_link(link:str,category):
     else:
         return "incorrect link"
 async def add_category(category):
-    conn =   await aiosqlite.connect("links.db")
+    conn =   await aiosqlite.connect(DB_FILE)
     await conn.execute("INSERT INTO categories(category) VALUES(?)",(category,))
     await conn.commit()
     await conn.close()
 
 async def delete_category_full(category, tg_channels: list, vk_manager):
-    async with aiosqlite.connect("links.db") as db:
+    async with aiosqlite.connect(DB_FILE) as db:
         db.row_factory = aiosqlite.Row
         
         # 1. Получаем все ссылки этой категории перед удалением
@@ -72,7 +73,7 @@ async def delete_category_full(category, tg_channels: list, vk_manager):
         
         await db.commit()
 async def delete_single_link(link:str, tg_channels: list, vk_manager):
-    async with aiosqlite.connect('links.db') as db:
+    async with aiosqlite.connect(DB_FILE) as db:
         db.row_factory = aiosqlite.Row
         
         # 1. Находим инфо о ссылке, чтобы понять, откуда её удалять
@@ -96,12 +97,12 @@ async def delete_single_link(link:str, tg_channels: list, vk_manager):
             await db.execute("DELETE FROM links WHERE url = ?", (link,))
             await db.commit()
 async def add_post(soc_media,group_name,text,link,category):
-    db = await aiosqlite.connect("links.db")
+    db = await aiosqlite.connect(DB_FILE)
     await db.execute("INSERT INTO posts(soc_media,group_name,text,link,category) VALUES (?,?,?,?,?)",(soc_media,group_name,text,link,category))
     await db.commit()
     await db.close()
 async def get_all_data():
-    db = await aiosqlite.connect("links.db")
+    db = await aiosqlite.connect(DB_FILE)
     categories = await db.execute_fetchall("SELECT * FROM Categories")
     links = await db.execute_fetchall("SELECT url,category FROM links")
     posts = await db.execute_fetchall("SELECT soc_media, group_name, text, link, category FROM posts order by id desc")
@@ -109,7 +110,7 @@ async def get_all_data():
     await db.close()
     return categories,links,posts
 async def delete_post(soc_media,group_name,text,link,category):
-    db =  await aiosqlite.connect("links.db")
+    db =  await aiosqlite.connect(DB_FILE)
     await db.execute("DELETE FROM posts where soc_media= ? and group_name = ? and text = ? and link = ? and category = ? ",(soc_media,group_name,text,link,category))
     await db.commit()
     await db.close()
@@ -120,7 +121,7 @@ async def auto_cleanup_task():
         while True:
             try:
                 # Подключаемся к SQLite асинхронно
-                async with aiosqlite.connect('links.db') as db:
+                async with aiosqlite.connect(DB_FILE) as db:
                     # 1. Удаляем посты, которые были созданы более 30 дней назад
                     async with db.execute("""
                         DELETE FROM posts 
