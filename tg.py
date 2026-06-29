@@ -19,8 +19,10 @@ async def parse_tg_id(client:TelegramClient,link:str):
     else:
         ent = await client.get_entity(id)
     return ent.id
-@client.on(events.NewMessage(chats=tg_channels))
+@client.on(events.NewMessage())
 async def handler(event):
+    if event.chat.id not in tg_channels:
+        return
     # event.message содержит всю информацию о новом посте
     print(f"Новое сообщение в канале {event.chat.title}:")
     print(event.message.text)
