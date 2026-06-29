@@ -20,6 +20,7 @@ session = None
 @asynccontextmanager
 async def lifespan(api:FastAPI):
     global client
+    global session
     await client.start()
     cleanup_job = asyncio.create_task(auto_cleanup_task())
     session = aiohttp.ClientSession()
