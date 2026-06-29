@@ -11,7 +11,6 @@ from fastapi.responses import HTMLResponse
 import re
 import aiohttp
 from fastapi.middleware.cors import CORSMiddleware
-from vk2 import VKRealTimeManager,token
 from tg import client,tg_channels,parse_tg_id,tg_categories
 from databases import add_link,add_category,delete_category_full,delete_single_link,load_links,get_all_data,add_post,delete_post,auto_cleanup_task
 from contextlib import asynccontextmanager
@@ -132,9 +131,6 @@ async def new_link(link:str,category,vkman=Depends(get_vkman)):
             rlink = await parse_tg_id(client=client,link=link)
             tg_channels.append(rlink)
             tg_categories[rlink] = category
-            return {"resp":"success"}
-        elif val == 'vk':
-            vkman.add_group(category=category,group_link=link)
             return {"resp":"success"}
         else:
             return {"error":"incorrect link"}
