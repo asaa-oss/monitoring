@@ -98,22 +98,21 @@ class VKRealTimeManager:
                 try:
                     # Безопасный вызов wall.get через наш гейт
                     response = await self._call_vk_safe(
-                        self.api.wall.get, owner_id=owner_id, count=5, extended=1, v="5.131"
+                        self.api.wall.get, owner_id=owner_id, count=10, extended=1, v="5.131"
                     )
                     posts = response.get('items', [])
-                    
-                    if not posts:
-                        await asyncio.sleep(self.check_interval)
-                        continue
+                
 
                     # Если это первый запуск — просто запоминаем текущие посты
                     if not self.last_posts[group_link]:
                         self.last_posts[group_link] = {p['id'] for p in posts}
-                    else:
-                        current_ids = {p['id'] for p in posts}
-                        new_ids = current_ids - self.last_posts[group_link]
+                    if not posts:
+                        await asyncio.sleep(self.check_interval)
+                        continue
 
-                        if new_ids:
+                    current_ids = {p['id'] for p in posts}
+                    new_ids = current_ids - self.last_posts[group_link]
+                    if new_ids:
                             group_info = response.get('groups', [{}])[0]
                             g_name = group_info.get('name', 'VK Group')
                             
