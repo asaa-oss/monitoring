@@ -94,7 +94,7 @@ async def get_all_data():
     db = await aiosqlite.connect(DB_FILE)
     categories = await db.execute_fetchall("SELECT * FROM Categories")
     links = await db.execute_fetchall("SELECT url,category FROM links")
-    posts = await db.execute_fetchall("SELECT soc_media, group_name, text, link, category FROM posts order by id desc")
+    posts = await db.execute_fetchall("SELECT soc_media, group_name, text, link, category,id FROM posts order by id desc")
     await db.commit()
     await db.close()
     return categories, links, posts
