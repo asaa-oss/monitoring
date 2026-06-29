@@ -19,18 +19,14 @@ import asyncio
 session = None
 @asynccontextmanager
 async def lifespan(api:FastAPI):
-    global client
-    await client.start()
     cleanup_job = asyncio.create_task(auto_cleanup_task())
     session = aiohttp.ClientSession()
     vkman = VKRealTimeManager(token=token,http_session=session)
     app.state.vkman = vkman
-    client.http_session = session
     await load_links(vk=vkman,tg_chan=tg_channels,tg_cat=tg_categories)
     yield
     await vkman.close()
     await session.close()
-    await client.disconnect()
     cleanup_job.cancel()
     await asyncio.gather(cleanup_job, return_exceptions=True)
 templates = Jinja2Templates(directory=".") 
@@ -122,6 +118,7 @@ async def read_root(request:Request):
     )
     
     
+# Лаконичная функция-зависимость
 def get_vkman(request: Request):
     try:
         return request.app.state.vkman

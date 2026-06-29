@@ -23,12 +23,9 @@ async def lifespan(api:FastAPI):
     await client.start()
     cleanup_job = asyncio.create_task(auto_cleanup_task())
     session = aiohttp.ClientSession()
-    vkman = VKRealTimeManager(token=token,http_session=session)
-    app.state.vkman = vkman
     client.http_session = session
-    await load_links(vk=vkman,tg_chan=tg_channels,tg_cat=tg_categories)
+    await load_links(vk=None,tg_chan=tg_channels,tg_cat=tg_categories)
     yield
-    await vkman.close()
     await session.close()
     await client.disconnect()
     cleanup_job.cancel()

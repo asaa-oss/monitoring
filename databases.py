@@ -68,6 +68,7 @@ async def delete_category_full(category, tg_channels: list, vk_manager):
                 await vk_manager.remove_category(link_url)
 
         # 3. Удаляем данные из БД (сначала ссылки, потом категорию)
+        await db.execute("DELETE FROM posts where category = ?",(category,))
         await db.execute("DELETE FROM links WHERE category = ?", (category,))
         await db.execute("DELETE FROM categories WHERE category = ?", (category,))
         
@@ -94,6 +95,7 @@ async def delete_single_link(link:str, tg_channels: list, vk_manager):
                 await vk_manager.delete_group(link_url)
 
             # 3. Удаляем из БД
+            await db.execute("DELETE FROM posts where link = ?",(link,))
             await db.execute("DELETE FROM links WHERE url = ?", (link,))
             await db.commit()
 async def add_post(soc_media,group_name,text,link,category):
