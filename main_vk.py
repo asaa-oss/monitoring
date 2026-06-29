@@ -20,6 +20,7 @@ session = None
 
 @asynccontextmanager
 async def lifespan(api: FastAPI):
+    global session
     cleanup_job = asyncio.create_task(auto_cleanup_task())
     session = aiohttp.ClientSession()
     vkman = VKRealTimeManager(token=token, http_session=session)
