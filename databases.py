@@ -79,7 +79,7 @@ async def delete_single_link(link:str, tg_channels: list, vk_manager):
         
         # 1. Находим инфо о ссылке, чтобы понять, откуда её удалять
         async with db.execute(
-            "SELECT url, soc_media FROM links WHERE url = ?", (link,)
+            "SELECT url, soc_media,category FROM links WHERE url = ?", (link,)
         ) as cursor:
             link = await cursor.fetchone()
         
@@ -92,7 +92,7 @@ async def delete_single_link(link:str, tg_channels: list, vk_manager):
                     tg_channels.remove(link_url)
             
             elif link["soc_media"] == "vk":
-                await vk_manager.delete_group(link_url)
+                await vk_manager.delete_group(link['category'],link_url)
 
             # 3. Удаляем из БД
             await db.execute("DELETE FROM posts where link = ?",(link,))
