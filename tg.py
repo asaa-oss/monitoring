@@ -3,7 +3,6 @@ from telethon.network.connection import ConnectionTcpMTProxyAbridged
 from telethon.tl.types import PeerChannel
 import asyncio
 import binascii
-import socks
 from dotenv import load_dotenv
 import json as jsonlib
 from os import getenv
@@ -11,7 +10,6 @@ tg_categories = {}
 load_dotenv()
 api_id = getenv("api_id")
 api_hash = getenv("api_hash")
-proxy = {"proxy_type":socks.SOCKS5,"addr":getenv("proxy_addr"),"port":int(getenv("proxy_port")),'rdns': True}
 tg_channels = []
 client = TelegramClient('monitoring_session', api_id, api_hash)
 async def parse_tg_id(client:TelegramClient,link:str):
