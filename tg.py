@@ -23,16 +23,15 @@ async def parse_tg_id(client:TelegramClient,link:str):
     return ent.id
 @client.on(events.NewMessage())
 async def handler(event):
-    if event.chat_id == None:
-        return
+    chat = await event.get_chat()
     if event.message.date < SCRIPT_START_TIME:
         return
-    if event.chat.id not in tg_channels:
+    if chat.id not in tg_channels:
         return
     # event.message содержит всю информацию о новом посте
     print(f"Новое сообщение в канале {event.chat.title}:")
     print(event.message.text)
-    json = {"group_name":event.chat.title,"text":event.message.text,"link":f"https://t.me/c/{event.chat.id}/{event.id}","category":tg_categories[event.chat.id],"soc_media":"tg"}
+    json = {"group_name":chat.title,"text":event.message.text,"link":f"https://t.me/c/{chat.id}/{event.id}","category":tg_categories[chat.id],"soc_media":"tg"}
     try:
         async with client.http_session.post(f"http://localhost:8000/api/inject_post?", json=json) as response:
             pass
