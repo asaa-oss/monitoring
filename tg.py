@@ -3,6 +3,7 @@ from telethon.network.connection import ConnectionTcpMTProxyAbridged
 from telethon.tl.types import PeerChannel
 import asyncio
 import binascii
+import datetime
 from dotenv import load_dotenv
 import json as jsonlib
 from os import getenv
@@ -21,6 +22,8 @@ async def parse_tg_id(client:TelegramClient,link:str):
     return ent.id
 @client.on(events.NewMessage())
 async def handler(event):
+    if event.message.date < datetime.now(datetime.timezone.utc):
+        return
     if event.chat.id not in tg_channels:
         return
     # event.message содержит всю информацию о новом посте
