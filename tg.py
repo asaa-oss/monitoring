@@ -5,12 +5,14 @@ import asyncio
 import binascii
 from dotenv import load_dotenv
 import json as jsonlib
+from datetime import datetime,timezone
 from os import getenv
 tg_categories = {}
 load_dotenv()
 api_id = getenv("api_id")
 api_hash = getenv("api_hash")
 tg_channels = []
+SCRIPT_START_TIME = datetime.now(timezone.utc)
 client = TelegramClient('monitoring_session', api_id, api_hash)
 async def parse_tg_id(client:TelegramClient,link:str):
     id = link.split("#")[-1].lstrip('-')
@@ -19,8 +21,10 @@ async def parse_tg_id(client:TelegramClient,link:str):
     else:
         ent = await client.get_entity(id)
     return ent.id
-@client.on(events.NewMessage(incoming=True))
+@client.on(events.NewMessage())
 async def handler(event):
+    if event.message.date < SCRIPT_START_TIME:
+        return
     if event.chat.id not in tg_channels:
         return
     # event.message содержит всю информацию о новом посте
