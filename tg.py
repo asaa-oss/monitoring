@@ -23,6 +23,8 @@ async def parse_tg_id(client:TelegramClient,link:str):
     return ent.id
 @client.on(events.NewMessage())
 async def handler(event):
+    if event.chat_id == None:
+        return
     if event.message.date < SCRIPT_START_TIME:
         return
     if event.chat.id not in tg_channels:
