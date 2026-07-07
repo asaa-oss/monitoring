@@ -92,11 +92,11 @@ async def delete_single_link(link:str, tg_channels: list, vk_manager):
                     tg_channels.remove(link_url)
             
             elif link["soc_media"] == "vk":
-                await vk_manager.delete_group(link['category'],link_url)
+                vk_manager.delete_group(link['category'],link_url)
 
             # 3. Удаляем из БД
-            await db.execute("DELETE FROM posts where link = ?",(link,))
-            await db.execute("DELETE FROM links WHERE url = ?", (link,))
+            await db.execute("DELETE FROM posts where link = ?",(link['url'],))
+            await db.execute("DELETE FROM links WHERE url = ?", (link['url'],))
             await db.commit()
 async def add_post(soc_media,group_name,text,link,category):
     db = await aiosqlite.connect(DB_FILE)
