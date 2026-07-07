@@ -22,7 +22,7 @@ async def load_links(vk:VKRealTimeManager,tg_chan:list,tg_cat:dict):
     
 async def add_link(link:str,category):
     tg_pattern = r"(https?://)?(t\.me|telegram\.me|web\.telegram\.org)/[a-zA-Z0-9_\+]+"
-    vk_pattern = r"(https?://)?(vk\.com|vk\.ru)/[a-zA-Z0-9._]+"
+    vk_pattern = r"(https?://)?(m\.)?(vk\.com|vk\.ru)/[a-zA-Z0-9._]+"
 
     if re.search(tg_pattern, link):
         conn =   await aiosqlite.connect(DB_FILE)
