@@ -52,8 +52,8 @@ class VKRealTimeManager:
                     await asyncio.sleep(self.vk_rate_limit - elapsed)
                 
                 # Вызываем метод (например, self.api.wall.get)
-                result = await method(**kwargs)
                 last_request_time = time.time()
+                result = await method(**kwargs)
                 
                 # Отдаем результат обратно в вызвавшую таску
                 if not future.cancelled():

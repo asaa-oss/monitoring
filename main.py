@@ -153,6 +153,7 @@ async def delete_category(category,vkman=Depends(get_vkman)):
 @app.delete("/removelink")
 async def delete_link(link,vkman=Depends(get_vkman)):
     await delete_single_link(link=link,tg_channels=tg_channels,vk_manager=vkman)
+    return {"resp":'success'}
 @app.post('/api/inject_post')
 async def post_broadcast(post:dict):
     await manager.broadcast_to_category(message=post,category=post['category'])
